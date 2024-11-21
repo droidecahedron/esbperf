@@ -17,3 +17,5 @@ PCF is 8bit payload len, 2bit PID, 1bit NOACK.
 
 ![image](https://github.com/user-attachments/assets/66cbf06a-0653-4053-8c7a-e5abc6083c14)
 
+
+# I highly recommend reviewing the readme or code here for more information on ESB : https://github.com/droidecahedron/esb_multi
