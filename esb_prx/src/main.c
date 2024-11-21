@@ -49,16 +49,7 @@ void event_handler(struct esb_evt const *event)
 		break;
 	case ESB_EVENT_RX_RECEIVED:
 		if (esb_read_rx_payload(&rx_payload) == 0) {
-			LOG_DBG("Packet received, len %d : "
-				"0x%02x, 0x%02x, 0x%02x, 0x%02x, "
-				"0x%02x, 0x%02x, 0x%02x, 0x%02x",
-				rx_payload.length, rx_payload.data[0],
-				rx_payload.data[1], rx_payload.data[2],
-				rx_payload.data[3], rx_payload.data[4],
-				rx_payload.data[5], rx_payload.data[6],
-				rx_payload.data[7]);
-
-			leds_update(rx_payload.data[1]);
+			LOG_DBG("Packet received, len %d : ", rx_payload.length);
 		} else {
 			LOG_ERR("Error while reading rx packet");
 		}
@@ -156,19 +147,28 @@ int esb_initialize(void)
 
 	struct esb_config config = ESB_DEFAULT_CONFIG;
 
-	config.protocol = ESB_PROTOCOL_ESB_DPL;
+	config.protocol = ESB_PROTOCOL_ESB; // _DPL;
+	config.payload_length = 252; // if using fixed, 252 max. 32 if dynamic.
+	config.retransmit_count = 0;
 	config.bitrate = ESB_BITRATE_2MBPS;
 	config.mode = ESB_MODE_PRX;
 	config.event_handler = event_handler;
 	config.selective_auto_ack = true;
-	if (IS_ENABLED(CONFIG_ESB_FAST_SWITCHING)) {
-		config.use_fast_ramp_up = true;
-	}
+	config.use_fast_ramp_up = true;
 
 	err = esb_init(&config);
 	if (err) {
 		return err;
 	}
+
+	tx_payload.length = 252;
+	memset(tx_payload.data, 1, 252);
+	tx_payload.pipe = 0;
+	// tx_payload.noack = true; // if disabling selective auto ack.
+	
+	rx_payload.length = 252;
+	rx_payload.pipe = 0;
+	
 
 	err = esb_set_base_address_0(base_addr_0);
 	if (err) {

@@ -156,7 +156,7 @@ int esb_initialize(void)
 	tx_payload.length = 252;
 	memset(tx_payload.data, 1, 252);
 	tx_payload.pipe = 0;
-	tx_payload.noack = true;
+	// tx_payload.noack = true; // if disabling selective auto ack.
 	
 	rx_payload.length = 252;
 	rx_payload.pipe = 0;
