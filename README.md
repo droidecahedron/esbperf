@@ -19,3 +19,4 @@ PCF is 8bit payload len, 2bit PID, 1bit NOACK.
 
 
 # I highly recommend reviewing the readme or code here for more information on ESB : https://github.com/droidecahedron/esb_multi
+> especially around actually monitoring radio activity with ppi, either with the code in the repo or the better code in the issues of that repo. the kernel uptime is not 100% accurate of whats happening on the radio, but its close enough I suppose.
