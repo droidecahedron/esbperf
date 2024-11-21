@@ -24,6 +24,8 @@
 
 LOG_MODULE_REGISTER(esb_prx, CONFIG_ESB_PRX_APP_LOG_LEVEL);
 
+#define MAX_ESB_PACKET_LEN 252
+
 static struct esb_payload rx_payload;
 static struct esb_payload tx_payload;
 
@@ -49,7 +51,9 @@ void event_handler(struct esb_evt const *event)
 		break;
 	case ESB_EVENT_RX_RECEIVED:
 		if (esb_read_rx_payload(&rx_payload) == 0) {
-			LOG_DBG("Packet received, len %d : ", rx_payload.length);
+			LOG_DBG("Packet received, len %d, d[0] %d", rx_payload.length, rx_payload.data[1]);
+			// preload next ack
+			// esb_write_payload(&tx_payload);
 		} else {
 			LOG_ERR("Error while reading rx packet");
 		}
@@ -147,8 +151,9 @@ int esb_initialize(void)
 
 	struct esb_config config = ESB_DEFAULT_CONFIG;
 
-	config.protocol = ESB_PROTOCOL_ESB; // _DPL;
-	config.payload_length = 252; // if using fixed, 252 max. 32 if dynamic.
+	// _DPL can be used for all lengths, just wont be backwards compatible with old devices.
+	config.protocol = ESB_PROTOCOL_ESB_DPL; 
+	config.payload_length = MAX_ESB_PACKET_LEN; // 252 max
 	config.retransmit_count = 0;
 	config.bitrate = ESB_BITRATE_2MBPS;
 	config.mode = ESB_MODE_PRX;
@@ -161,12 +166,12 @@ int esb_initialize(void)
 		return err;
 	}
 
-	tx_payload.length = 252;
-	memset(tx_payload.data, 1, 252);
+	tx_payload.length = MAX_ESB_PACKET_LEN;
+	memset(tx_payload.data, 1, MAX_ESB_PACKET_LEN);
 	tx_payload.pipe = 0;
-	// tx_payload.noack = true; // if disabling selective auto ack.
+	tx_payload.noack = false; // ignored on prx.
 	
-	rx_payload.length = 252;
+	rx_payload.length = MAX_ESB_PACKET_LEN;
 	rx_payload.pipe = 0;
 	
 
@@ -213,11 +218,12 @@ int main(void)
 
 	LOG_INF("Initialization complete");
 
-	err = esb_write_payload(&tx_payload);
-	if (err) {
-		LOG_ERR("Write payload, err %d", err);
-		return 0;
-	}
+	// this is if you want to do acks. this test only cares about one way.
+	// err = esb_write_payload(&tx_payload);
+	// if (err) {
+	// 	LOG_ERR("Write payload, err %d", err);
+	// 	return 0;
+	// }
 
 	LOG_INF("Setting up for packet receiption");
 

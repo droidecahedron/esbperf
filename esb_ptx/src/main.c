@@ -28,11 +28,15 @@ static bool ready = true;
 static struct esb_payload rx_payload;
 static struct esb_payload tx_payload;
 
+#define MAX_ESB_PACKET_LEN 252
 
 #define _RADIO_SHORTS_COMMON                                                   \
 	(RADIO_SHORTS_READY_START_Msk | RADIO_SHORTS_END_DISABLE_Msk |         \
 	 RADIO_SHORTS_ADDRESS_RSSISTART_Msk |                                  \
 	 RADIO_SHORTS_DISABLED_RSSISTOP_Msk)
+
+uint64_t data = 0; // tracking num bytes
+uint64_t rx_num = 0; 
 
 void event_handler(struct esb_evt const *event)
 {
@@ -41,13 +45,15 @@ void event_handler(struct esb_evt const *event)
 	switch (event->evt_id) {
 	case ESB_EVENT_TX_SUCCESS:
 		LOG_DBG("TX SUCCESS EVENT");
+		data += tx_payload.length;
 		break;
 	case ESB_EVENT_TX_FAILED:
 		LOG_DBG("TX FAILED EVENT");
 		break;
-	case ESB_EVENT_RX_RECEIVED:
+	case ESB_EVENT_RX_RECEIVED: // in case you want to do full duplex
 		while (esb_read_rx_payload(&rx_payload) == 0) {
 			LOG_DBG("Packet received, len %d : ", rx_payload.length);
+			rx_num += rx_payload.length;
 		}
 		break;
 	}
@@ -142,8 +148,8 @@ int esb_initialize(void)
 
 	struct esb_config config = ESB_DEFAULT_CONFIG;
 
-	config.protocol = ESB_PROTOCOL_ESB; // ESB_PROTOCOL_ESB or DPL
-	config.payload_length = 252; // if using fixed, 252 max. 32 if dynamic.
+	config.protocol = ESB_PROTOCOL_ESB_DPL; // ESB_PROTOCOL_ESB or DPL
+	config.payload_length = MAX_ESB_PACKET_LEN; // if using fixed, 252 max. 32 if dynamic.
 	config.retransmit_count = 0;
 	config.bitrate = ESB_BITRATE_2MBPS; // change to 4M to test on 54
 	config.event_handler = event_handler;
@@ -153,12 +159,12 @@ int esb_initialize(void)
 
 	err = esb_init(&config);
 
-	tx_payload.length = 252;
-	memset(tx_payload.data, 1, 252);
+	tx_payload.length = MAX_ESB_PACKET_LEN;
+	memset(tx_payload.data, 1, MAX_ESB_PACKET_LEN);
 	tx_payload.pipe = 0;
-	// tx_payload.noack = true; // if disabling selective auto ack.
+	tx_payload.noack = true;
 	
-	rx_payload.length = 252;
+	rx_payload.length = MAX_ESB_PACKET_LEN;
 	rx_payload.pipe = 0;
 	
 	if (err) {
@@ -197,8 +203,10 @@ static void leds_update(uint8_t value)
 int main(void)
 {
 	int err;
+	uint64_t stamp;
+	int64_t delta;
 
-	LOG_INF("Enhanced ShockBurst ptx sample");
+	LOG_INF("Enhanced ShockBurst ptx throughput test");
 
 	err = clocks_start();
 	if (err) {
@@ -218,20 +226,32 @@ int main(void)
 	}
 
 	LOG_INF("Initialization complete");
-	LOG_INF("Sending test packet");
+	LOG_INF("Sending test 1000 packet of len 252");
 
 	tx_payload.noack = false;
-	while (1) {
+	stamp = k_uptime_get_32();
+	for(int i=0;i<1000;i++)
+	{
 		if (ready) {
 			ready = false;
 			esb_flush_tx();
 
 			err = esb_write_payload(&tx_payload);
-			if (err) {
+			if (err)
+			{
 				LOG_ERR("Payload write failed, err %d", err);
 			}
 			tx_payload.data[1]++;
 		}
 		k_yield();
+	}
+	delta = k_uptime_delta(&stamp);
+	k_sleep(K_MSEC(500)); // give it some breathing room to avoid malformed logs after grabbing delta
+	LOG_INF("test complete");
+	LOG_INF("TX throughput, %d byte payloads in %lld ms at %llu kbps",
+	tx_payload.length, delta, ((uint64_t)data * 8 / delta));
+	while(1)
+	{
+		k_sleep(K_MSEC(500)); // sleep forever, hit reset to test again. (PRX doesn't need reset)
 	}
 }
